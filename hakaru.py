@@ -371,8 +371,8 @@ class BanishFailure(ValueError):
     def __str__(self):
         return ("Dependency prevents banishing %s in %s" % self.args)
 
-def banish(m):
-    # banish(Bind(b,x,m)) eliminates (integrates out) the variable x<~b
+def marginal(m):
+    # marginal(Bind(b,x,m)) eliminates (integrates out) the variable x<~b
     # as long as x is used in m only in weights
 
     def _banish(b, x, w, m):
@@ -395,9 +395,9 @@ class TestBanish:
 
     def test_normal(self):
         from sympy.abc import x, y
-        assert banish(Bind(Lebesgue(-oo,oo),y,exp(-x**2-y**2+x*y)*Ret(x))) == sqrt(pi)*exp(-3*x**2/4)*Ret(x)
+        assert marginal(Bind(Lebesgue(-oo,oo),y,exp(-x**2-y**2+x*y)*Ret(x))) == sqrt(pi)*exp(-3*x**2/4)*Ret(x)
 
     def test_categorical(self):
         from sympy.abc import i, j, m, n
         M = IndexedBase('M')
-        assert banish(Bind(Counting(0,n-1),j,M[i,j]*Ret(i))) == Sum(M[i,j],(j,0,n-1))*Ret(i)
+        assert marginal(Bind(Counting(0,n-1),j,M[i,j]*Ret(i))) == Sum(M[i,j],(j,0,n-1))*Ret(i)
