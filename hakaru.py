@@ -1,4 +1,4 @@
-from sympy import sympify, Symbol, Function, Expr, Lambda, Dummy, Mul, Add, S, simplify, expand, integrate, separatevars, exp, pi, sqrt, oo
+from sympy import sympify, Symbol, Function, Expr, Lambda, Dummy, IndexedBase, Idx, Mul, Add, S, simplify, expand, integrate, Sum, separatevars, exp, pi, sqrt, oo
 from sympy.stats import density, Normal
 
 class Ret(Function('Ret', nargs=1, commutative=False)):
@@ -12,15 +12,28 @@ class Ret(Function('Ret', nargs=1, commutative=False)):
 
 class Lebesgue(Function('Lebesgue', nargs=2, commutative=False)):
 
-    def __new__(cls, lo, hi):
-        return Expr.__new__(cls, sympify(lo), sympify(hi))
+    def __new__(cls, lower, upper):
+        return Expr.__new__(cls, sympify(lower), sympify(upper))
 
     @property
-    def lo(self):
+    def lower(self):
         return self._args[0]
 
     @property
-    def hi(self):
+    def upper(self):
+        return self._args[1]
+
+class Counting(Function('Counting', nargs=2, commutative=False)):
+
+    def __new__(cls, lower, upper):
+        return Expr.__new__(cls, sympify(lower), sympify(upper))
+
+    @property
+    def lower(self):
+        return self._args[0]
+
+    @property
+    def upper(self):
         return self._args[1]
 
 class Bind(Function('Bind', nargs=3, commutative=False)):
@@ -41,7 +54,20 @@ class Bind(Function('Bind', nargs=3, commutative=False)):
         # Rename self.variable in self.after to avoid free_symbols
         var = self._args[1]
         aft = self._args[2]
-        if any(self.variable in object.free_symbols for object in avoid):
+        if isinstance(self._args[0], Lebesgue):
+            x = Dummy(var.name,
+                      real = True,
+                      positive = self._args[0].lower >= 0 and self._args[0].upper >= 0,
+                      negative = self._args[0].lower <= 0 and self._args[0].upper <= 0)
+            return (x, aft.subs(var, x))
+        elif isinstance(self._args[0], Counting):
+            x = Dummy(var.name,
+                      integer = True,
+                      positive = self._args[0].lower >= 0 and self._args[0].upper >= 0,
+                      negative = self._args[0].lower <= 0 and self._args[0].upper <= 0)
+            x = Idx(x, self._args[0].lower, self._args[0].upper)
+            return (x, aft.subs(var, x))
+        elif any(self.variable in object.free_symbols for object in avoid):
             x = Dummy(var.name)
             return (x, aft.subs(var, x))
         else:
@@ -240,7 +266,7 @@ def recognize(m, x, w):
             return None
         if hol.annihilator.order == 1:
             cf = continued_fraction(*hol.annihilator.listofpoly)
-            if [len(q) for q in cf] == [2] and m.lo == -oo and m.hi == oo:
+            if [len(q) for q in cf] == [2] and m.lower == -oo and m.upper == oo:
                 [[b1,b0]] = cf
                 mean = -b0/b1
                 std = 1/sqrt(b1)
@@ -298,9 +324,11 @@ class Expect(Function):
             (x, after) = m.enter([g])
             return Expect(m.before, Lambda(x, Expect(after, g)))
         if isinstance(m, Lebesgue):
-            # Name r to avoid g.free_symbols
             l = parameter(g, 'l')
-            return holonomic_integrate(g(l), (l, m.lo, m.hi))
+            return holonomic_integrate(g(l), (l, m.lower, m.upper))
+        if isinstance(m, Counting):
+            k = parameter(g, 'k')
+            return Sum(g(k), (k, m.lower, m.upper))
 
 class TestExpect:
 
@@ -337,7 +365,7 @@ class TestExpect:
         m = Function('m', commutative=False)
         n = Function('n', commutative=False)
         g = Function('g')
-        assert Expect(Bind(Bind(Lebesgue(3,6), x, m(x)), y, n(y)), Lambda(z, g(z))) == integrate(Expect(m(x), Lambda(y, Expect(n(y), Lambda(z, g(z))))), (x,3,6))
+        assert Expect(Bind(Bind(Lebesgue(3,6), x, m(x)), y, n(y)), Lambda(z, g(z))).dummy_eq(integrate(Expect(m(x), Lambda(y, Expect(n(y), Lambda(z, g(z))))), (x,3,6)))
 
 class BanishFailure(ValueError):
     def __str__(self):
@@ -368,4 +396,8 @@ class TestBanish:
     def test_normal(self):
         from sympy.abc import x, y
         assert banish(Bind(Lebesgue(-oo,oo),y,exp(-x**2-y**2+x*y)*Ret(x))) == sqrt(pi)*exp(-3*x**2/4)*Ret(x)
-    # TODO: Test more
+
+    def test_categorical(self):
+        from sympy.abc import i, j, m, n
+        M = IndexedBase('M')
+        assert banish(Bind(Counting(0,n-1),j,M[i,j]*Ret(i))) == Sum(M[i,j],(j,0,n-1))*Ret(i)
