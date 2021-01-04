@@ -407,3 +407,8 @@ class TestBanish:
                          M[i,j]*N[j,k]*Ret((i,k)))))
                 == Bind(Counting(0,m-1),k,
                    Sum(M[i,j]*N[j,k],(j,0,n-1))*Ret((i,k))))
+        assert (marginal(Bind(Counting(0,n-1),j,
+                         Bind(Counting(0,m-1),k,
+                         M[i,j]*N[k]*Ret((i,k)))))
+                == Bind(Counting(0,m-1),k,
+                   Sum(M[i,j],(j,0,n-1))*N[k]*Ret((i,k))))
