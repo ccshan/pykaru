@@ -398,6 +398,12 @@ class TestBanish:
         assert marginal(Bind(Lebesgue(-oo,oo),y,exp(-x**2-y**2+x*y)*Ret(x))) == sqrt(pi)*exp(-3*x**2/4)*Ret(x)
 
     def test_categorical(self):
-        from sympy.abc import i, j, m, n
+        from sympy.abc import i, j, k, m, n
         M = IndexedBase('M')
+        N = IndexedBase('N')
         assert marginal(Bind(Counting(0,n-1),j,M[i,j]*Ret(i))) == Sum(M[i,j],(j,0,n-1))*Ret(i)
+        assert (marginal(Bind(Counting(0,n-1),j,
+                         Bind(Counting(0,m-1),k,
+                         M[i,j]*N[j,k]*Ret((i,k)))))
+                == Bind(Counting(0,m-1),k,
+                   Sum(M[i,j]*N[j,k],(j,0,n-1))*Ret((i,k))))
